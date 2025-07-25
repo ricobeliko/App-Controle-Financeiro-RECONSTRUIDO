@@ -6,19 +6,16 @@ import {
     BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
-// SUA CONFIGURAÇÃO DO FIREBASE (ORIGINAL - como fornecida, será usada como fallback)
-// ATENÇÃO: Para ambientes de produção no Canvas, o API Key deve ser injetado via __firebase_config
-// e não ser hardcoded para segurança.
-const firebaseConfig = {
-    apiKey: "AIzaSyDT-niusHqWyFDmU4sjhsaG8egAdG27WVk",
-    authDomain: "controle-de-cartao.firebaseapp.com",
-    projectId: "controle-de-cartao",
-    storageBucket: "controle-de-cartao.firebasestorage.app",
-    messagingSenderId: "364725310124",
-    appId: "1:364725310124:web:0786258bdcb72d5d70509",
-    measurementId: "G-ZY1KDDC3G7"
-};
 
+const firebaseConfig = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+};
 // Contexto para compartilhar o estado do Firebase e do usuário em toda a aplicação
 const AppContext = createContext();
 
