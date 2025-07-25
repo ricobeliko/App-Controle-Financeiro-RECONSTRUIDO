@@ -158,7 +158,7 @@ const Toast = ({ message, onClose }) => {
         if (message) {
             const timer = setTimeout(() => {
                 onClose();
-            }, 5000); // Fecha automaticamente após 5 segundos
+            }, 3000); // Fecha automaticamente após 5 segundos
             return () => clearTimeout(timer);
         }
     }, [message, onClose]);
@@ -245,6 +245,13 @@ function App() {
     };
     const clearToast = () => setToastMessage(null);
 
+    const showAuthError = (message) => {
+        setAuthError(message);
+        setTimeout(() => {
+            setAuthError('');
+        }, 5000); // 5000 milissegundos = 5 segundos
+    };
+
     // Efeito para inicializar o Firebase e gerenciar o estado de autenticação.
     // Adaptação para o ambiente Canvas, utilizando __firebase_config e __initial_auth_token.
     useEffect(() => {
@@ -283,7 +290,7 @@ function App() {
             return () => unsubscribe(); // Limpa o listener ao desmontar o componente
         } catch (error) {
             console.error("Erro na inicialização do Firebase:", error);
-            setAuthError(`Erro na inicialização do Firebase: ${error.message}. Verifique sua configuração.`);
+            showAuthError(`Erro na inicialização do Firebase: ${error.message}. Verifique sua configuração.`);
             setIsAuthReady(true); // Garante que a tela de erro seja exibida mesmo se a inicialização falhar
         }
     }, []); // Array de dependências vazio para rodar apenas uma vez na montagem
@@ -339,11 +346,11 @@ function App() {
         setPostRegistrationMessage(null);
 
         if (password.length < 8) {
-            setAuthError('A senha deve ter no mínimo 8 caracteres.');
+            showAuthError('A senha deve ter no mínimo 8 caracteres.');
             return;
         }
         if (password !== confirmPassword) {
-            setAuthError('As senhas não coincidem.');
+            showAuthError('As senhas não coincidem.');
             return;
         }
 
@@ -365,13 +372,14 @@ function App() {
             }, { merge: true });
             console.log("Perfil do usuário salvo no Firestore.");
 
-            setAuthMessage('🎉 Cadastro realizado com sucesso! Um e-mail de verificação foi enviado para você. Por favor, verifique sua caixa de entrada e spam para fazer login e aproveitar todos os recursos! Você será redirecionado para a tela de login em 5 segundos. 🚀');
+            setAuthMessage('🎉 Quase lá! Enviamos um e-mail de verificação para você. Em instantes, você será redirecionado para a tela de login. 🚀');
 
             setTimeout(async () => {
                 await signOut(auth); // Desloga para forçar o login com verificação de e-mail
+                setAuthMessage('');
                 setIsRegistering(false);
-                setPostRegistrationMessage('🎉 Cadastro realizado com sucesso! Um e-mail de verificação foi enviado para você. Por favor, verifique sua caixa de entrada e spam para fazer login e aproveitar todos os recursos! 🚀');
-            }, 5000);
+                setPostRegistrationMessage('🎉 Falta Pouco! Por favor, verifique sua caixa de entrada e spam para fazer login e aproveitar todos os recursos! 🚀');
+            }, 25000);
 
             setEmail('');
             setPassword('');
@@ -381,16 +389,16 @@ function App() {
         } catch (error) {
             console.error("Erro no cadastro:", error);
             if (error.code === 'auth/operation-not-allowed') {
-                setAuthError('O registro com e-mail/senha não está ativado. Por favor, ative-o nas configurações de autenticação do seu projeto Firebase.');
+                showAuthError('O registro com e-mail/senha não está ativado. Por favor, ative-o nas configurações de autenticação do seu projeto Firebase.');
             } else if (error.code === 'auth/invalid-argument') {
-                setAuthError('Argumento inválido. Verifique se o e-mail está formatado corretamente e a senha atende aos requisitos.');
+                showAuthError('Argumento inválido. Verifique se o e-mail está formatado corretamente e a senha atende aos requisitos.');
             } else if (error.code === 'auth/email-already-in-use') {
-                setAuthError('Este e-mail já está em uso. Tente fazer login ou use outro e-mail.');
+                showAuthError('Este e-mail já está em uso. Tente fazer login ou use outro e-mail.');
             } else if (error.code === 'permission-denied') {
-                setAuthError('Erro de permissão ao salvar dados do usuário. Por favor, verifique as regras de segurança do seu Firestore no Firebase Console.');
+                showAuthError('Erro de permissão ao salvar dados do usuário. Por favor, verifique as regras de segurança do seu Firestore no Firebase Console.');
             }
             else {
-                setAuthError(`Erro no cadastro: ${error.message}`);
+                showAuthError(`Erro no cadastro: ${error.message}`);
             }
         }
     };
@@ -421,7 +429,7 @@ function App() {
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    setAuthError('Utilizador (login) não encontrado. Verifique o seu login ou utilize o seu e-mail.');
+                    showAuthError('Utilizador (login) não encontrado. Verifique o seu login ou utilize o seu e-mail.');
                     return;
                 }
 
@@ -439,8 +447,6 @@ function App() {
 
             // Verifica se o e-mail foi verificado
             if (!userCredential.user.emailVerified) {
-                await signOut(auth); // Desloga o usuário se o e-mail não estiver verificado
-                setAuthMessage('O seu e-mail não foi verificado. Por favor, verifique a sua caixa de entrada e spam para iniciar sessão.');
                 return;
             }
 
@@ -459,16 +465,16 @@ function App() {
         } catch (error) {
             console.error("Erro no login:", error);
             if (error.code === 'auth/operation-not-allowed') {
-                setAuthError('O início de sessão com e-mail/palavra-passe não está ativado. Por favor, ative-o nas configurações de autenticação do seu projeto Firebase.');
+                showAuthError('O início de sessão com e-mail/palavra-passe não está ativado. Por favor, ative-o nas configurações de autenticação do seu projeto Firebase.');
             } else if (error.code === 'auth/invalid-argument') {
-                setAuthError('Argumento inválido. Verifique se o e-mail/login está formatado corretamente e a palavra-passe atende aos requisitos.');
+                showAuthError('Argumento inválido. Verifique se o e-mail/login está formatado corretamente e a palavra-passe atende aos requisitos.');
             } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-                setAuthError('E-mail/Login ou palavra-passe inválidos.');
+                showAuthError('E-mail/Login ou palavra-passe inválidos.');
             } else if (error.code === 'permission-denied') {
-                setAuthError('Erro de permissão ao procurar utilizador. As regras de segurança do Firestore não permitem a procura de utilizadores por login antes da autenticação. Consulte o console para mais detalhes.');
+                showAuthError('Erro de permissão ao procurar utilizador. As regras de segurança do Firestore não permitem a procura de utilizadores por login antes da autenticação. Consulte o console para mais detalhes.');
             }
             else {
-                setAuthError(`Erro no início de sessão: ${error.message}`);
+                showAuthError(`Erro no início de sessão: ${error.message}`);
             }
         }
     };
@@ -477,12 +483,23 @@ function App() {
      * Manipulador de logout.
      * Encerra a sessão do usuário.
      */
-    const handleLogout = async () => {
+    const handleLogout = async (suppressMessage = false) => {
         try {
             await signOut(auth);
-            setAuthMessage('Sessão terminada com sucesso.');
+    
+            // Limpa TODAS as mensagens
+            setAuthError('');
+            setAuthMessage('');
+            setPostRegistrationMessage(null);
+    
+            if (!suppressMessage) {
+                // Define a mensagem de logout apenas se não for suprimida
+                setAuthMessage('Sessão terminada com sucesso.');
+            }
+    
             setActiveTab('resumo'); // Redireciona para o resumo após logout
-
+            setPassword('');
+            setShowSettingsDropdown(false);
             // Restaura o campo de e-mail se "Lembrar meu e-mail" estiver ativado
             const savedEmail = localStorage.getItem('rememberedEmail');
             if (savedEmail) {
@@ -502,7 +519,8 @@ function App() {
             setShowSettingsDropdown(false); // Fecha o dropdown de configurações
         } catch (error) {
             console.error("Erro ao terminar a sessão:", error);
-            setAuthError(`Erro ao terminar a sessão: ${error.message}`);
+            showAuthError(`Erro ao terminar a sessão: ${error.message}`);
+            showAuthError('Erro ao sair.');
         }
     };
 
@@ -559,16 +577,29 @@ function App() {
                         </div>
                     )}
 
-                    {currentUser && !currentUser.emailVerified && (
+                     {currentUser && !currentUser.emailVerified && !isRegistering && !authMessage && (
                         <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-700 dark:text-yellow-300 px-4 py-3 rounded-lg mb-4 text-sm text-center">
                             O seu e-mail (<span className="font-semibold">{currentUser.email}</span>) ainda não foi verificado. Por favor, verifique a sua caixa de entrada e spam para ativar a sua conta e começar a usar a aplicação!
                             <button
                                 onClick={async () => {
                                     try {
                                         await sendEmailVerification(currentUser);
-                                        setAuthMessage('🎉 Novo e-mail de verificação enviado! Por favor, verifique a sua caixa de entrada e spam. Mal podemos esperar para você começar! 🚀');
+                                
+                                        // 1. Mostra uma mensagem persistente em vez de um toast
+                                        setAuthMessage('🚀 Novo e-mail de verificação enviado!');
+                                
+                                        // 2. Inicia um temporizador de 10 segundos
+                                        setTimeout(() => {
+                                            handleLogout(true); // 3. Desloga o usuário após 10s para limpar a tela
+                                        }, 5000);
+                                
                                     } catch (error) {
-                                        setAuthError(`Erro ao reenviar e-mail de verificação: ${error.message}`);
+                                        // 4. Melhora a mensagem de erro para o caso de muitas tentativas
+                                        if (error.code === 'auth/too-many-requests') {
+                                            showAuthError('Muitas tentativas de reenvio. Por favor, aguarde um momento antes de tentar novamente.');
+                                        } else {
+                                            showAuthError(`Erro ao reenviar e-mail: ${error.message}`);
+                                        }
                                     }
                                 }}
                                 className="block w-full mt-3 bg-yellow-500 text-white py-2 rounded-lg hover:bg-yellow-600 transition duration-300 shadow-md dark:bg-yellow-700 dark:hover:bg-yellow-800"
@@ -582,7 +613,7 @@ function App() {
                                 Sair
                             </button>
                         </div>
-                    )}
+                    )} 
 
                     {!(currentUser && !currentUser.emailVerified) && (
                         <form onSubmit={isRegistering ? handleRegister : handleLogin} className="space-y-4">
