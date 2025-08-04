@@ -1,16 +1,16 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
-    "./index.html", // Aponta para o public/index.html
-    "./src/**/*.{js,ts,jsx,tsx}", // Abrange todos os ficheiros relevantes na pasta src
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}", // ✅ Esta linha garante que ele olhe TODAS as pastas dentro de 'src'
   ],
-  darkMode: 'class', // Para que o nosso tema escuro funcione
+  darkMode: 'class', // Habilita o modo escuro baseado na classe 'dark' no HTML
   theme: {
     extend: {
-      // Pode adicionar as suas personalizações de tema aqui se desejar
+      fontFamily: {
+        inter: ['Inter', 'sans-serif'], // Adiciona a fonte Inter se você a estiver a usar
+      },
     },
   },
-  plugins: [
-    // Pode adicionar plugins do Tailwind aqui se desejar
-  ],
+  plugins: [],
 }

@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "controle-de-cartao"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

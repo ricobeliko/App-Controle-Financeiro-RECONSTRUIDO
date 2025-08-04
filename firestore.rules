@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Regra OTIMIZADA e SEGURA para o caminho de desenvolvimento
+    match /users_fallback/{userId}/{path=**} {
+      // Permite que o usuário leia e apague seus próprios dados
+      allow read, delete: if request.auth != null && request.auth.uid == userId;
+
+      // Permite a criação de documentos (ex: perfil, cartões, etc.)
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Permite a atualização, EXCETO do campo 'plan'
+      allow update: if request.auth != null && request.auth.uid == userId
+                      && request.resource.data.plan == resource.data.plan; // <-- Trava de segurança
+    }
+
+    // Adicione aqui a mesma regra para o caminho de produção, se necessário
+    // match /artifacts/{appId}/users/{userId}/{path=**} { ... }
+  }
+}
