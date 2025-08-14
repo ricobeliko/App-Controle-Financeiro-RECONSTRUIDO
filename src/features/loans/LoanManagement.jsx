@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 
 // IMPORTANDO O NECESSÁRIO
-import { AppContext, useAppContext } from '../../context/AppContext';
+import { AppContext } from '../../context/AppContext';
 import { formatCurrencyDisplay, parseCurrencyInput, handleCurrencyInputChange } from '../../utils/currency';
 import GenericModal from '../../components/GenericModal';
 
@@ -34,17 +34,14 @@ function LoanManagement() {
     const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
     const [loanToDelete, setLoanToDelete] = useState(null);
 
-    // NOVO ESTADO: Para controlar a ordenação da tabela
     const [sortConfig, setSortConfig] = useState({ key: 'loanDate', direction: 'descending' });
 
-    // Funções de busca de nome (para usar na ordenação)
     const getClientName = (clientId) => clients.find(c => c.id === clientId)?.name || 'N/A';
     const getCardInfo = (cardId) => {
         const card = cards.find(c => c.id === cardId);
         return card ? { name: card.name, color: card.color || '#cccccc' } : { name: 'Cartão Desconhecido', color: '#cccccc' };
     };
 
-    // Efeito para calcular a parte da Pessoa 2
     useEffect(() => {
         if (purchaseType === 'shared') {
             const totalVal = parseCurrencyInput(totalValueInput);
@@ -60,7 +57,6 @@ function LoanManagement() {
         }
     }, [totalValueInput, person1ShareInput, purchaseType]);
 
-    // Efeitos para carregar dados (clientes, cartões, empréstimos)
     useEffect(() => {
         if (!isAuthReady || !db || !userId) return;
         const userCollectionPath = getUserCollectionPathSegments();
@@ -90,109 +86,31 @@ function LoanManagement() {
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const fetchedLoans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setLoans(fetchedLoans); // Armazena os originais
+            setLoans(fetchedLoans);
 
-            // Transforma para exibição (expande compras compartilhadas)
             const transformedForDisplay = fetchedLoans.flatMap(loan => {
                 if (loan.isShared && loan.sharedDetails) {
-                    const p1Installments = typeof loan.sharedDetails.person1.installments === 'string' ? JSON.parse(loan.sharedDetails.person1.installments) : loan.sharedDetails.person1.installments || [];
-                    const p2Installments = typeof loan.sharedDetails.person2.installments === 'string' ? JSON.parse(loan.sharedDetails.person2.installments) : loan.sharedDetails.person2.installments || [];
+                    const p1Installments = Array.isArray(loan.sharedDetails.person1.installments) ? loan.sharedDetails.person1.installments : [];
+                    const p2Installments = Array.isArray(loan.sharedDetails.person2.installments) ? loan.sharedDetails.person2.installments : [];
                     
-                    // --- NOVA LÓGICA DE CÁLCULO DA PARCELA ATUAL PARA EXIBIÇÃO ---
                     const getInstallmentProgressDisplay = (installmentsArray, totalCount) => {
                         const today = new Date();
-                        today.setHours(0, 0, 0, 0); // Zera hora para comparação de data pura
+                        today.setHours(0, 0, 0, 0);
                         
                         let currentInstallmentNumber = 0;
                         let foundNextPendingOrOverdue = false; 
                         
-                        // Encontra a primeira parcela pendente ou atrasada
                         for (let i = 0; i < installmentsArray.length; i++) {
                             const inst = installmentsArray[i];
                             if (inst.status === 'Pendente') {
                                 const dueDate = new Date(inst.dueDate + "T00:00:00");
-                                dueDate.setHours(0, 0, 0, 0); // Zera hora
+                                dueDate.setHours(0, 0, 0, 0);
                                 
-                                if (dueDate >= today) { // Se a parcela ainda vai vencer ou vence hoje
+                                if (dueDate >= today) {
                                     currentInstallmentNumber = inst.number;
                                     foundNextPendingOrOverdue = true;
                                     break;
-                                } else { // Se a parcela está atrasada
-                                    currentInstallmentNumber = inst.number;
-                                    foundNextPendingOrOverdue = true;
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (!foundNextPendingOrOverdue) {
-                            // Se não encontrou nenhuma pendente ou atrasada,
-                            // significa que todas as parcelas anteriores foram pagas.
-                            // Verifica se existe alguma parcela paga e, se sim, pega o número da última paga.
-                            // Se nenhuma foi paga (totalCount = 0 ou tudo futuro), mostra 0/totalCount.
-                            const lastPaid = installmentsArray.filter(inst => inst.status === 'Paga').pop();
-                            if (lastPaid) {
-                                return `${lastPaid.number}/${totalCount}`;
-                            } else {
-                                // Se nenhuma foi paga e nenhuma pendente/atrasada, significa que a compra é nova
-                                // ou todas as parcelas são futuras. Mostra 0 ou 1 se houver parcelas.
-                                return totalCount > 0 ? `1/${totalCount}` : `0/${totalCount}`; // Se tem parcelas mas nenhuma paga/pendente atual, mostra 1/Total
-                            }
-                        } else {
-                            // Retorna o número da parcela atual a ser paga ou a atrasada, sobre o total
-                            return `${currentInstallmentNumber}/${totalCount}`;
-                        }
-                    };
-                    // --- FIM NOVA LÓGICA ---
-
-                    const parts = [];
-                    if (loan.sharedDetails.person1 && loan.sharedDetails.person1.clientId) {
-                        parts.push({
-                            displayId: `${loan.id}-p1`, originalLoanId: loan.id, personKey: 'person1', isSharedPart: true,
-                            clientId: loan.sharedDetails.person1.clientId, cardId: loan.cardId, description: loan.description,
-                            totalValue: loan.sharedDetails.person1.shareAmount, installmentsCount: loan.installmentsCount,
-                            totalToPayClient: loan.sharedDetails.person1.shareAmount, valuePaidClient: loan.sharedDetails.person1.valuePaid,
-                            statusPaymentClient: loan.sharedDetails.person1.statusPayment, installments: p1Installments,
-                            firstDueDate: loan.firstDueDate, loanDate: loan.loanDate, originalSharedPurchaseTotalValue: loan.totalItemValue,
-                            createdAt: loan.createdAt,
-                            installmentsProgress: getInstallmentProgressDisplay(p1Installments, loan.installmentsCount) // ATUALIZADO
-                        });
-                    }
-                    if (loan.sharedDetails.person2 && loan.sharedDetails.person2.clientId && loan.sharedDetails.person2.shareAmount > 0) {
-                        parts.push({
-                            displayId: `${loan.id}-p2`, originalLoanId: loan.id, personKey: 'person2', isSharedPart: true,
-                            clientId: loan.sharedDetails.person2.clientId, cardId: loan.cardId, description: loan.description,
-                            totalValue: loan.sharedDetails.person2.shareAmount, installmentsCount: loan.installmentsCount,
-                            totalToPayClient: loan.sharedDetails.person2.shareAmount, valuePaidClient: loan.sharedDetails.person2.valuePaid,
-                            statusPaymentClient: loan.sharedDetails.person2.statusPayment, installments: p2Installments,
-                            firstDueDate: loan.firstDueDate, loanDate: loan.loanDate, originalSharedPurchaseTotalValue: loan.totalItemValue,
-                            createdAt: loan.createdAt,
-                            installmentsProgress: getInstallmentProgressDisplay(p2Installments, loan.installmentsCount) // ATUALIZADO
-                        });
-                    }
-                    return parts;
-                } else {
-                    const normalInstallmentsParsed = typeof loan.installments === 'string' ? JSON.parse(loan.installments) : (loan.installments || []);
-                    
-                    // --- NOVA LÓGICA DE CÁLCULO DA PARCELA ATUAL PARA EXIBIÇÃO ---
-                    const getInstallmentProgressDisplay = (installmentsArray, totalCount) => {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0); // Zera hora para comparação de data pura
-                        
-                        let currentInstallmentNumber = 0;
-                        let foundNextPendingOrOverdue = false; 
-
-                        for (let i = 0; i < installmentsArray.length; i++) {
-                            const inst = installmentsArray[i];
-                            if (inst.status === 'Pendente') {
-                                const dueDate = new Date(inst.dueDate + "T00:00:00");
-                                dueDate.setHours(0, 0, 0, 0); // Zera hora
-                                
-                                if (dueDate >= today) { // Se a parcela ainda vai vencer ou vence hoje
-                                    currentInstallmentNumber = inst.number;
-                                    foundNextPendingOrOverdue = true;
-                                    break;
-                                } else { // Se a parcela está atrasada
+                                } else {
                                     currentInstallmentNumber = inst.number;
                                     foundNextPendingOrOverdue = true;
                                     break;
@@ -211,14 +129,79 @@ function LoanManagement() {
                             return `${currentInstallmentNumber}/${totalCount}`;
                         }
                     };
-                    // --- FIM NOVA LÓGICA ---
+
+                    const parts = [];
+                    if (loan.sharedDetails.person1 && loan.sharedDetails.person1.clientId) {
+                        parts.push({
+                            displayId: `${loan.id}-p1`, originalLoanId: loan.id, personKey: 'person1', isSharedPart: true,
+                            clientId: loan.sharedDetails.person1.clientId, cardId: loan.cardId, description: loan.description,
+                            totalValue: loan.sharedDetails.person1.shareAmount, installmentsCount: loan.installmentsCount,
+                            totalToPayClient: loan.sharedDetails.person1.shareAmount, valuePaidClient: loan.sharedDetails.person1.valuePaid,
+                            statusPaymentClient: loan.sharedDetails.person1.statusPayment, installments: p1Installments,
+                            firstDueDate: loan.firstDueDate, loanDate: loan.loanDate, originalSharedPurchaseTotalValue: loan.totalItemValue,
+                            createdAt: loan.createdAt,
+                            installmentsProgress: getInstallmentProgressDisplay(p1Installments, loan.installmentsCount)
+                        });
+                    }
+                    if (loan.sharedDetails.person2 && loan.sharedDetails.person2.clientId && loan.sharedDetails.person2.shareAmount > 0) {
+                        parts.push({
+                            displayId: `${loan.id}-p2`, originalLoanId: loan.id, personKey: 'person2', isSharedPart: true,
+                            clientId: loan.sharedDetails.person2.clientId, cardId: loan.cardId, description: loan.description,
+                            totalValue: loan.sharedDetails.person2.shareAmount, installmentsCount: loan.installmentsCount,
+                            totalToPayClient: loan.sharedDetails.person2.shareAmount, valuePaidClient: loan.sharedDetails.person2.valuePaid,
+                            statusPaymentClient: loan.sharedDetails.person2.statusPayment, installments: p2Installments,
+                            firstDueDate: loan.firstDueDate, loanDate: loan.loanDate, originalSharedPurchaseTotalValue: loan.totalItemValue,
+                            createdAt: loan.createdAt,
+                            installmentsProgress: getInstallmentProgressDisplay(p2Installments, loan.installmentsCount)
+                        });
+                    }
+                    return parts;
+                } else {
+                    const normalInstallmentsParsed = Array.isArray(loan.installments) ? loan.installments : [];
+                    
+                    const getInstallmentProgressDisplay = (installmentsArray, totalCount) => {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        
+                        let currentInstallmentNumber = 0;
+                        let foundNextPendingOrOverdue = false; 
+
+                        for (let i = 0; i < installmentsArray.length; i++) {
+                            const inst = installmentsArray[i];
+                            if (inst.status === 'Pendente') {
+                                const dueDate = new Date(inst.dueDate + "T00:00:00");
+                                dueDate.setHours(0, 0, 0, 0);
+                                
+                                if (dueDate >= today) {
+                                    currentInstallmentNumber = inst.number;
+                                    foundNextPendingOrOverdue = true;
+                                    break;
+                                } else {
+                                    currentInstallmentNumber = inst.number;
+                                    foundNextPendingOrOverdue = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!foundNextPendingOrOverdue) {
+                            const lastPaid = installmentsArray.filter(inst => inst.status === 'Paga').pop();
+                            if (lastPaid) {
+                                return `${lastPaid.number}/${totalCount}`;
+                            } else {
+                                return totalCount > 0 ? `1/${totalCount}` : `0/${totalCount}`;
+                            }
+                        } else {
+                            return `${currentInstallmentNumber}/${totalCount}`;
+                        }
+                    };
 
                     return {
                         ...loan, displayId: loan.id, originalLoanId: loan.id, personKey: null, isSharedPart: false,
                         installments: normalInstallmentsParsed, totalToPayClient: loan.totalValue,
                         valuePaidClient: loan.valuePaidClient || 0, statusPaymentClient: loan.statusPaymentClient || 'Pendente',
                         firstDueDate: loan.firstDueDateClient,
-                        installmentsProgress: getInstallmentProgressDisplay(normalInstallmentsParsed, loan.installmentsCount) // ATUALIZADO
+                        installmentsProgress: getInstallmentProgressDisplay(normalInstallmentsParsed, loan.installmentsCount)
                     };
                 }
             });
@@ -228,7 +211,6 @@ function LoanManagement() {
         return () => unsubscribe();
     }, [db, userId, isAuthReady, getUserCollectionPathSegments]);
 
-    // Efeito para cálculo da primeira parcela (já corrigido)
     useEffect(() => {
         if (selectedCard && cards.length > 0 && loanDate && !editingLoan) {
             const card = cards.find(c => c.id === selectedCard);
@@ -241,8 +223,8 @@ function LoanManagement() {
                     closingDate.setMonth(closingDate.getMonth() + 1);
                 }
                 let firstDueDt = new Date(closingDate.getFullYear(), closingDate.getMonth(), dueDay);
-                if (dueDay < closingDay) { // Se o dia de vencimento é menor que o dia de fechamento
-                    firstDueDt.setMonth(firstDueDt.getMonth() + 1); // A primeira parcela vence no mês seguinte ao fechamento
+                if (dueDay < closingDay) {
+                    firstDueDt.setMonth(firstDueDt.getMonth() + 1);
                 }
                 const year = firstDueDt.getFullYear();
                 const month = (firstDueDt.getMonth() + 1).toString().padStart(2, '0');
@@ -255,7 +237,6 @@ function LoanManagement() {
         }
     }, [selectedCard, cards, loanDate, editingLoan]);
 
-    // NOVA LÓGICA DE ORDENAÇÃO
     const sortedDisplayableLoans = React.useMemo(() => {
         let sortableItems = [...displayableLoans];
         if (sortConfig.key !== null) {
@@ -380,22 +361,22 @@ function LoanManagement() {
                 statusPaymentClient: 'Pendente',
                 valuePaidClient: 0,
                 balanceDueClient: totalLoanValue,
-                installments: JSON.stringify(loanInstallments),
+                installments: loanInstallments,
                 isShared: false,
                 createdAt: new Date(),
                 sharedDetails: null,
                 totalItemValue: null,
             };
             try {
-                if (editingLoan && !editingLoan.isShared) {
+                if (editingLoan) {
+                    if (editingLoan.hasOwnProperty('plan')) {
+                        loanData.plan = editingLoan.plan;
+                    }
                     await updateDoc(doc(db, ...userCollectionPath, userId, 'loans', editingLoan.id), loanData);
                     showToast("Compra normal atualizada com sucesso!", "success");
-                } else if (!editingLoan) {
+                } else {
                     await addDoc(collection(db, ...userCollectionPath, userId, 'loans'), loanData);
                     showToast("Compra normal adicionada com sucesso!", "success");
-                } else {
-                    showToast("Não é possível converter uma compra compartilhada para normal desta forma.", "error");
-                    return;
                 }
                 resetForm();
             } catch (error) {
@@ -437,7 +418,7 @@ function LoanManagement() {
                     person1: {
                         clientId: selectedClient1,
                         shareAmount: person1ShareVal,
-                        installments: JSON.stringify(installmentsP1),
+                        installments: installmentsP1,
                         statusPayment: 'Pendente',
                         valuePaid: 0,
                         balanceDue: person1ShareVal
@@ -445,7 +426,7 @@ function LoanManagement() {
                     person2: {
                         clientId: selectedClient2,
                         shareAmount: person2ShareVal,
-                        installments: JSON.stringify(installmentsP2),
+                        installments: installmentsP2,
                         statusPayment: person2ShareVal > 0 ? 'Pendente' : 'N/A',
                         valuePaid: 0,
                         balanceDue: person2ShareVal
@@ -463,15 +444,15 @@ function LoanManagement() {
             };
 
             try {
-                if (editingLoan && editingLoan.isShared) {
+                if (editingLoan) {
+                     if (editingLoan.hasOwnProperty('plan')) {
+                        sharedPurchaseData.plan = editingLoan.plan;
+                    }
                     await updateDoc(doc(db, ...userCollectionPath, userId, 'loans', editingLoan.id), sharedPurchaseData);
                     showToast("Compra compartilhada atualizada com sucesso!", "success");
-                } else if (!editingLoan) {
+                } else {
                     await addDoc(collection(db, ...userCollectionPath, userId, 'loans'), sharedPurchaseData);
                     showToast("Compra compartilhada adicionada com sucesso!", "success");
-                } else {
-                    showToast("Não é possível converter uma compra normal para compartilhada desta forma.", "error");
-                    return;
                 }
                 resetForm();
             } catch (error) {
@@ -553,98 +534,83 @@ function LoanManagement() {
         const loanDocRef = doc(db, ...userCollectionPath, userId, 'loans', originalLoanId);
         let updatedFields = {};
 
-        if (loanToUpdate.isShared && personKey) {
-            const currentSharedDetails = JSON.parse(JSON.stringify(loanToUpdate.sharedDetails));
-            const personData = currentSharedDetails[personKey];
-            const personInstallments = typeof personData.installments === 'string' ?
-                JSON.parse(personData.installments) :
-                [...(personData.installments || [])];
-
-            const installmentIndex = personInstallments.findIndex(inst => inst.number === installmentNumber);
-            if (installmentIndex === -1) {
-                console.error("Parcela não encontrada para atualização (compartilhada).", { installmentIndex, length: personInstallments.length });
-                showToast("Erro: Parcela não encontrada.", "error");
-                return;
-            }
-
-            personInstallments[installmentIndex] = {
-                ...personInstallments[installmentIndex],
-                status: newStatus,
-                paidDate: newStatus === 'Paga' ? new Date().toISOString().split('T')[0] : null,
-            };
-
-            const newValuePaidPerson = personInstallments
-                .filter(inst => inst.status === 'Paga')
-                .reduce((sum, inst) => sum + inst.value, 0);
-
-            const newBalanceDuePerson = parseFloat((personData.shareAmount - newValuePaidPerson).toFixed(2));
-
-            let newPersonStatus = 'Pendente';
-            if (newBalanceDuePerson <= 0.005) { 
-                newPersonStatus = 'Pago Total';
-            } else if (newValuePaidPerson > 0) {
-                newPersonStatus = 'Pago Parcial';
-            }
-
-            currentSharedDetails[personKey] = {
-                ...personData,
-                installments: JSON.stringify(personInstallments),
-                valuePaid: newValuePaidPerson,
-                balanceDue: newBalanceDuePerson,
-                statusPayment: newPersonStatus,
-            };
-            updatedFields = { sharedDetails: currentSharedDetails };
-
-        } else if (!loanToUpdate.isShared) {
-            const normalInstallmentsRaw = loanToUpdate.installments;
-            let normalInstallmentsParsed = [];
-            try {
-                normalInstallmentsParsed = typeof normalInstallmentsRaw === 'string' ?
-                    JSON.parse(normalInstallmentsRaw) :
-                    [...(normalInstallmentsRaw || [])];
-            } catch (e) {
-                console.error("Erro ao fazer parse das parcelas para compra normal:", e, normalInstallmentsRaw);
-                showToast("Erro ao processar parcelas da compra.", "error");
-                return;
-            }
-
-            const installmentIndex = normalInstallmentsParsed.findIndex(inst => inst.number === installmentNumber);
-            if (installmentIndex === -1) {
-                console.error("Índice da parcela inválido para atualização (normal).", { installmentIndex, length: normalInstallmentsParsed.length });
-                showToast("Erro: Parcela não encontrada.", "error");
-                return;
-            }
-
-            normalInstallmentsParsed[installmentIndex] = {
-                ...normalInstallmentsParsed[installmentIndex],
-                status: newStatus,
-                paidDate: newStatus === 'Paga' ? new Date().toISOString().split('T')[0] : null,
-            };
-            const newValuePaid = normalInstallmentsParsed.filter(i => i.status === 'Paga').reduce((sum, i) => sum + i.value, 0);
-            const newBalanceDue = parseFloat((loanToUpdate.totalValue - newValuePaid).toFixed(2));
-            let newOverallStatus = 'Pendente';
-            if (newBalanceDue <= 0.005) newOverallStatus = 'Pago Total';
-            else if (newValuePaid > 0) newOverallStatus = 'Pago Parcial';
-
-            updatedFields = {
-                installments: JSON.stringify(normalInstallmentsParsed),
-                valuePaidClient: newValuePaid,
-                balanceDueClient: newBalanceDue,
-                statusPaymentClient: newOverallStatus,
-            };
-        } else {
-            console.error("Tentativa de atualizar parcela de forma inválida (nem shared com personKey, nem normal).", { isShared: loanToUpdate.isShared, personKey });
-            showToast("Erro: Tentativa de atualizar parcela inválida.", "error");
-            return;
-        }
-
         try {
+            // ✅ CORREÇÃO FINAL: Adiciona o campo 'plan' para satisfazer a regra de segurança
+            if (loanToUpdate.hasOwnProperty('plan')) {
+                updatedFields.plan = loanToUpdate.plan;
+            }
+
+            if (loanToUpdate.isShared && personKey) {
+                const currentSharedDetails = JSON.parse(JSON.stringify(loanToUpdate.sharedDetails));
+                const personData = currentSharedDetails[personKey];
+                
+                const personInstallments = Array.isArray(personData.installments) ? [...personData.installments] : [];
+
+                const installmentIndex = personInstallments.findIndex(inst => inst.number === installmentNumber);
+                if (installmentIndex === -1) {
+                    throw new Error("Parcela não encontrada para atualização (compartilhada).");
+                }
+
+                personInstallments[installmentIndex] = {
+                    ...personInstallments[installmentIndex],
+                    status: newStatus,
+                    paidDate: newStatus === 'Paga' ? new Date().toISOString().split('T')[0] : null,
+                };
+
+                const newValuePaidPerson = personInstallments
+                    .filter(inst => inst.status === 'Paga')
+                    .reduce((sum, inst) => sum + inst.value, 0);
+
+                const newBalanceDuePerson = parseFloat((personData.shareAmount - newValuePaidPerson).toFixed(2));
+
+                let newPersonStatus = 'Pendente';
+                if (newBalanceDuePerson <= 0.005) { 
+                    newPersonStatus = 'Pago Total';
+                } else if (newValuePaidPerson > 0) {
+                    newPersonStatus = 'Pago Parcial';
+                }
+
+                currentSharedDetails[personKey] = {
+                    ...personData,
+                    installments: personInstallments,
+                    valuePaid: newValuePaidPerson,
+                    balanceDue: newBalanceDuePerson,
+                    statusPayment: newPersonStatus,
+                };
+                updatedFields.sharedDetails = currentSharedDetails;
+
+            } else if (!loanToUpdate.isShared) {
+                const normalInstallmentsParsed = Array.isArray(loanToUpdate.installments) ? [...loanToUpdate.installments] : [];
+
+                const installmentIndex = normalInstallmentsParsed.findIndex(inst => inst.number === installmentNumber);
+                if (installmentIndex === -1) {
+                    throw new Error("Índice da parcela inválido para atualização (normal).");
+                }
+
+                normalInstallmentsParsed[installmentIndex] = {
+                    ...normalInstallmentsParsed[installmentIndex],
+                    status: newStatus,
+                    paidDate: newStatus === 'Paga' ? new Date().toISOString().split('T')[0] : null,
+                };
+                const newValuePaid = normalInstallmentsParsed.filter(i => i.status === 'Paga').reduce((sum, i) => sum + i.value, 0);
+                const newBalanceDue = parseFloat((loanToUpdate.totalValue - newValuePaid).toFixed(2));
+                let newOverallStatus = 'Pendente';
+                if (newBalanceDue <= 0.005) newOverallStatus = 'Pago Total';
+                else if (newValuePaid > 0) newOverallStatus = 'Pago Parcial';
+
+                updatedFields.installments = normalInstallmentsParsed;
+                updatedFields.valuePaidClient = newValuePaid;
+                updatedFields.balanceDueClient = newBalanceDue;
+                updatedFields.statusPaymentClient = newOverallStatus;
+            } else {
+                throw new Error("Tentativa de atualizar parcela de forma inválida.");
+            }
+
             await updateDoc(loanDocRef, updatedFields);
-            showToast(`Parcela ${installmentNumber} marcada como paga!`, "success");
-            console.log(`Parcela da compra ${originalLoanId} (parte: ${personKey || 'normal'}) atualizada para ${newStatus}.`);
+            showToast(`Parcela ${installmentNumber} atualizada com sucesso!`, "success");
         } catch (error) {
             console.error("Erro ao atualizar status da parcela:", error);
-            showToast(`Erro ao marcar parcela como paga: ${error.message}`, "error");
+            showToast(`Erro ao atualizar status da parcela: ${error.message}`, "error");
         }
     };
 
@@ -700,7 +666,7 @@ function LoanManagement() {
                             required={purchaseType === 'shared'}
                         >
                             <option value="">Selecione a Pessoa 2</option>
-                            {clients.filter(c => c.id !== selectedClient1).map(client => ( // Evita selecionar o mesmo cliente
+                            {clients.filter(c => c.id !== selectedClient1).map(client => (
                                 <option key={client.id} value={client.id}>{client.name}</option>
                             ))}
                         </select>
@@ -775,7 +741,7 @@ function LoanManagement() {
                     onChange={(e) => setFirstDueDate(e.target.value)}
                     className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     required
-                    readOnly={!editingLoan && selectedCard && loanDate} // Torna somente leitura se não estiver editando e as dependências estiverem preenchidas
+                    readOnly={!editingLoan && selectedCard && loanDate}
                 />
                 <div className="col-span-full flex justify-end gap-4">
                     <button
@@ -787,9 +753,7 @@ function LoanManagement() {
                     {editingLoan && (
                         <button
                             type="button"
-                            onClick={() => {
-                                resetForm();
-                            }}
+                            onClick={resetForm}
                             className="bg-gray-400 text-white py-3 px-6 rounded-lg hover:bg-gray-500 transition duration-300 shadow-md dark:bg-gray-600 dark:hover:bg-gray-700"
                         >
                             Cancelar Edição
@@ -870,7 +834,7 @@ function LoanManagement() {
                                                     loanItem.statusPaymentClient === 'Pendente' ? 'text-yellow-600 dark:text-yellow-400' :
                                                         loanItem.statusPaymentClient === 'Pago Parcial' ? 'text-blue-600 dark:text-blue-400' :
                                                             'text-red-600 dark:text-red-400'
-                                                            }`}>
+                                                        }`}>
                                                 {loanItem.statusPaymentClient}
                                             </td>
                                             <td className="py-3 px-4 whitespace-nowrap flex items-center gap-2">
@@ -916,7 +880,7 @@ function LoanManagement() {
                                                             Parcelas {loanItem.isSharedPart ? `(Ref. Compra Total: ${formatCurrencyDisplay(loanItem.originalSharedPurchaseTotalValue)})` : ''}:
                                                         </h4>
                                                         <ul className="list-disc list-inside space-y-1">
-                                                            {loanItem.installments.map((installment, index) => (
+                                                            {loanItem.installments.map((installment) => (
                                                                 <li key={`${loanItem.displayId}-inst-${installment.number}`} className="text-gray-700 dark:text-gray-300 flex justify-between items-center">
                                                                     <div>
                                                                         Parcela {installment.number}: {formatCurrencyDisplay(installment.value)} - Vencimento: {installment.dueDate} - Status:

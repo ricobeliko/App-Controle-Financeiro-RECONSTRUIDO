@@ -1,13 +1,16 @@
 // src/features/auth/AuthScreen.jsx
 
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createUserWithEmailAndPassword, sendEmailVerification, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { doc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { AppContext } from '../../App'; // Ajuste o caminho se o AppContext estiver em App.jsx
+// 1. IMPORTAÇÃO CORRIGIDA
+// Agora importa o hook useAppContext do local centralizado.
+import { useAppContext } from '../../context/AppContext';
 
 function AuthScreen() {
-    // Pegando o que precisamos do contexto global
-    const { auth, db, currentUser, getUserCollectionPathSegments } = useContext(AppContext);
+    // 2. USO CORRETO DO HOOK
+    // Pegando o que precisamos do contexto global usando o hook.
+    const { auth, db, currentUser, getUserCollectionPathSegments } = useAppContext();
 
     // Estados que controlam o formulário e as mensagens
     const [email, setEmail] = useState('');
@@ -102,6 +105,7 @@ function AuthScreen() {
         try {
             if (!isEmailFormat) {
                 const userCollectionPathPrefix = getUserCollectionPathSegments();
+                // O caminho da coleção de usuários é um nível acima do caminho do usuário individual
                 const usersRef = collection(db, ...userCollectionPathPrefix);
                 const q = query(usersRef, where('name', '==', email));
                 const querySnapshot = await getDocs(q);

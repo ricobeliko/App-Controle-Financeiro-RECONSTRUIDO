@@ -1,4 +1,4 @@
-// src/utils/firebase.js
+// src/utils/firebase.js - VERSÃO FINAL PARA USAR A BASE DE DADOS ANTIGA
 
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
@@ -17,20 +17,16 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// Exporta as instâncias dos serviços do Firebase para serem usadas em toda a aplicação
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const functions = getFunctions(app);
+export { firebaseConfig };
 
 /**
- * Constrói o caminho da coleção de dados do usuário no Firestore.
+ * Constrói o caminho da coleção de dados do utilizador no Firestore.
+ * Aponta permanentemente para a coleção 'users_fallback'.
  */
 export const getUserCollectionPathSegments = () => {
-    if (typeof window.__app_id !== 'undefined') {
-        return ['artifacts', window.__app_id, 'users'];
-    } else {
-        // O aviso agora fica aqui, em um só lugar
-        console.warn("AVISO: __app_id não está definido. Usando um caminho de fallback 'users_fallback'.");
-        return ['users_fallback'];
-    }
+    // Retorna o caminho para a sua base de dados original.
+    return ['users_fallback'];
 };
