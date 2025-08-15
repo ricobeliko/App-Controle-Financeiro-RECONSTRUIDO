@@ -4,17 +4,17 @@ import React, { useState, useEffect } from 'react';
 import { signOut } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 import { useAppContext } from './context/AppContext'; 
-// CAMINHO CORRIGIDO AQUI
 import { auth, functions, db } from './utils/firebase'; 
 import AuthScreen from './features/auth/AuthScreen';
 import Dashboard from './features/dashboard/Dashboard';
 import ClientManagement from './features/clients/ClientManagement';
 import CardManagement from './features/cards/CardManagement';
-import LoanManagement from './features/loans/LoanManagement';
+// ✅ 1. IMPORTAR O NOVO COMPONENTE UNIFICADO DE MOVIMENTAÇÕES
+import UnifiedTransactionManagement from './features/transactions/TransactionManagement'; 
 import SubscriptionManagement from './features/subscriptions/SubscriptionManagement';
 import Toast from './components/Toast';
 
-// --- COMPONENTE UserStatusBadge ---
+// --- COMPONENTE UserStatusBadge (sem alterações) ---
 const ShieldCheckIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
 );
@@ -104,12 +104,14 @@ function App() {
                         <h1 className="text-2xl md:text-3xl font-bold">Controlo Financeiro</h1>
                         <UserStatusBadge />
                     </div>
+                    {/* ✅ 2. BARRA DE NAVEGAÇÃO ATUALIZADA */}
                     <nav className="flex flex-wrap space-x-1 sm:space-x-2 items-center">
                         <button onClick={() => setActiveTab('resumo')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'resumo' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Resumo</button>
                         <button onClick={() => setActiveTab('pessoas')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'pessoas' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Pessoas</button>
                         <button onClick={() => setActiveTab('cards')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'cards' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Cartões</button>
-                        <button onClick={() => setActiveTab('purchases')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'purchases' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Compras</button>
+                        <button onClick={() => setActiveTab('transactions')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'transactions' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Movimentações</button>
                         <button onClick={() => setActiveTab('subscriptions')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'subscriptions' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Assinaturas</button>
+                        
                         <div className="relative">
                             <button onClick={() => setShowSettingsDropdown(prev => !prev)} className="ml-2 p-2 rounded-full text-white hover:bg-blue-700 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-blue-800 dark:focus:ring-offset-gray-900 focus:ring-white" title="Configurações">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-settings"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></svg>
@@ -130,10 +132,11 @@ function App() {
                 </div>
             </header>
             <main className="container mx-auto p-4 mt-4">
+                {/* ✅ 3. RENDERIZAR O COMPONENTE UNIFICADO QUANDO A ABA ESTIVER ATIVA */}
                 {activeTab === 'resumo' && <Dashboard {...{ selectedMonth, setSelectedMonth, selectedCardFilter, setSelectedCardFilter, selectedClientFilter, setSelectedClientFilter }} />}
                 {activeTab === 'pessoas' && <ClientManagement />}
                 {activeTab === 'cards' && <CardManagement />}
-                {activeTab === 'purchases' && <LoanManagement />}
+                {activeTab === 'transactions' && <UnifiedTransactionManagement />}
                 {activeTab === 'subscriptions' && <SubscriptionManagement {...{ selectedMonth, setSelectedMonth }} />}
             </main>
             <Toast message={toastMessage} onClose={clearToast} />

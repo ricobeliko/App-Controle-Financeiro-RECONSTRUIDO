@@ -1,3 +1,5 @@
+// src/features/loans/LoanManagement.jsx
+
 import React, { useState, useEffect, useContext, useMemo } from 'react';
 import { collection, onSnapshot, doc, updateDoc, addDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 
@@ -522,6 +524,7 @@ function LoanManagement() {
         }));
     };
 
+    // ✅✅✅ LÓGICA ANTIGA RESTAURADA ✅✅✅
     const handleUpdateInstallmentStatusLoan = async (originalLoanId, personKey, installmentNumber, newStatus) => {
         const loanToUpdate = loans.find(l => l.id === originalLoanId);
         if (!loanToUpdate) {
@@ -535,7 +538,6 @@ function LoanManagement() {
         let updatedFields = {};
 
         try {
-            // ✅ CORREÇÃO FINAL: Adiciona o campo 'plan' para satisfazer a regra de segurança
             if (loanToUpdate.hasOwnProperty('plan')) {
                 updatedFields.plan = loanToUpdate.plan;
             }
