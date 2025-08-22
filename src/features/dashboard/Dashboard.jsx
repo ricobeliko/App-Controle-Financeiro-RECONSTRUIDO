@@ -87,7 +87,13 @@ function Dashboard({ selectedMonth, setSelectedMonth, selectedCardFilter, setSel
         const allItems = [];
 
         loans.forEach(loan => {
-            const processInstallments = (installments, personDetails) => {
+            // ✅ CORREÇÃO APLICADA AQUI
+            const processInstallments = (installmentsData, personDetails) => {
+                // Garante que 'installments' seja sempre um array, convertendo de string se necessário.
+                const installments = Array.isArray(installmentsData) 
+                    ? installmentsData 
+                    : (typeof installmentsData === 'string' ? JSON.parse(installmentsData) : []);
+
                 (installments || []).forEach(inst => {
                     const instDate = new Date(inst.dueDate + "T00:00:00");
                     if (instDate.getUTCFullYear() === filterYear && instDate.getUTCMonth() + 1 === filterMonth &&
