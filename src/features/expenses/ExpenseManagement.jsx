@@ -16,14 +16,14 @@ function ExpenseManagement() {
     const { db, userId, isAuthReady, getUserCollectionPathSegments, theme, showToast, isPro } = useAppContext();
     const [expenses, setExpenses] = useState([]);
     const [cards, setCards] = useState([]);
-    const [clients, setClients] = useState([]); // ✅ 1. Estado para Pessoas
+    const [clients, setClients] = useState([]);
     
     const [description, setDescription] = useState('');
     const [valueInput, setValueInput] = useState('');
     const [date, setDate] = useState('');
     const [category, setCategory] = useState('');
     const [selectedCardId, setSelectedCardId] = useState('');
-    const [selectedClientId, setSelectedClientId] = useState(''); // ✅ 2. Estado para Pessoa selecionada
+    const [selectedClientId, setSelectedClientId] = useState('');
     const [editingExpense, setEditingExpense] = useState(null);
 
     const [isConfirmationModalOpen, setIsConfirmationModalOpen] = useState(false);
@@ -33,28 +33,20 @@ function ExpenseManagement() {
         if (!isAuthReady || !db || !userId) return;
         const userCollectionPath = getUserCollectionPathSegments();
 
-        // Carrega Cartões
         const unsubCards = onSnapshot(collection(db, ...userCollectionPath, userId, 'cards'), (snapshot) => {
             setCards(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
-
-        // ✅ Carrega Pessoas
         const unsubClients = onSnapshot(collection(db, ...userCollectionPath, userId, 'clients'), (snapshot) => {
             setClients(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
         
-        // Carrega Despesas
         const expensesColRef = collection(db, ...userCollectionPath, userId, 'expenses');
         const q = query(expensesColRef, orderBy("date", "desc"));
         const unsubExpenses = onSnapshot(q, (snapshot) => {
             setExpenses(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
         });
 
-        return () => {
-            unsubCards();
-            unsubClients();
-            unsubExpenses();
-        };
+        return () => { unsubCards(); unsubClients(); unsubExpenses(); };
     }, [db, userId, isAuthReady, getUserCollectionPathSegments]);
 
     const resetForm = () => {
@@ -73,7 +65,6 @@ function ExpenseManagement() {
             showToast('Este é um recurso exclusivo para assinantes Pro.', 'warning');
             return;
         }
-        // ✅ 3. Validação atualizada para incluir a Pessoa
         if (!description.trim() || !valueInput || !date || !category || !selectedClientId) {
             showToast('Por favor, preencha todos os campos obrigatórios.', 'warning');
             return;
@@ -86,8 +77,10 @@ function ExpenseManagement() {
             value, 
             date, 
             category,
-            clientId: selectedClientId, // Campo obrigatório
-            cardId: selectedCardId || null
+            clientId: selectedClientId,
+            cardId: selectedCardId || null,
+            // ✅ 1. ADICIONANDO O CAMPO 'status' AO CRIAR/ATUALIZAR UMA DESPESA
+            status: editingExpense ? editingExpense.status : 'Pendente' // Mantém o status ao editar, ou define como pendente ao criar
         };
 
         try {
@@ -104,6 +97,20 @@ function ExpenseManagement() {
             showToast(`Erro ao salvar despesa: ${error.message}`, "error");
         }
     };
+    
+    // ✅ 2. NOVA FUNÇÃO PARA ALTERAR O STATUS DA DESPESA
+    const handleToggleExpenseStatus = async (expense) => {
+        const newStatus = expense.status === 'Paga' ? 'Pendente' : 'Paga';
+        const expenseDocRef = doc(db, ...getUserCollectionPathSegments(), userId, 'expenses', expense.id);
+        try {
+            await updateDoc(expenseDocRef, { status: newStatus });
+            showToast(`Despesa marcada como ${newStatus.toLowerCase()}!`, 'success');
+        } catch (error) {
+            console.error("Erro ao atualizar status da despesa:", error);
+            showToast("Erro ao atualizar o status.", "error");
+        }
+    };
+
 
     const confirmDelete = (expenseId) => {
         setExpenseToDelete(expenseId);
@@ -111,7 +118,18 @@ function ExpenseManagement() {
     };
 
     const handleDeleteConfirmed = async () => {
-        // ... (lógica de deletar, sem alterações)
+        if (!expenseToDelete) return;
+        const userCollectionPath = getUserCollectionPathSegments();
+        try {
+            await deleteDoc(doc(db, ...userCollectionPath, userId, 'expenses', expenseToDelete));
+            showToast("Despesa deletada com sucesso!", "success");
+        } catch (error) {
+            console.error("Erro ao deletar despesa:", error);
+            showToast(`Erro ao deletar despesa: ${error.message}`, "error");
+        } finally {
+            setIsConfirmationModalOpen(false);
+            setExpenseToDelete(null);
+        }
     };
 
     const handleEdit = (expense) => {
@@ -121,7 +139,7 @@ function ExpenseManagement() {
         setDate(expense.date);
         setCategory(expense.category);
         setSelectedCardId(expense.cardId || '');
-        setSelectedClientId(expense.clientId); // Preenche o campo de pessoa
+        setSelectedClientId(expense.clientId);
     };
 
     return (
@@ -129,12 +147,10 @@ function ExpenseManagement() {
             <h2 className="text-2xl font-semibold mb-4 text-gray-800 dark:text-gray-200">Gerenciar Despesas Avulsas</h2>
             
             <form onSubmit={handleSubmit} className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
-                {/* Campos existentes (Descrição, Valor, Data) - sem alterações */}
                 <input type="text" placeholder="Descrição (Ex: Jantar)" value={description} onChange={(e) => setDescription(e.target.value)} disabled={!isPro} required className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50" />
                 <input type="text" placeholder="Valor (R$)" value={valueInput} onChange={handleCurrencyInputChange(setValueInput)} disabled={!isPro} required className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50" />
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={!isPro} required className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50" />
                 
-                {/* ✅ 4. NOVO CAMPO OBRIGATÓRIO PARA SELECIONAR A PESSOA */}
                 <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)} disabled={!isPro} required className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-50">
                     <option value="">Selecione uma Pessoa</option>
                     {clients.map(client => <option key={client.id} value={client.id}>{client.name}</option>)}
@@ -165,27 +181,32 @@ function ExpenseManagement() {
                             <tr>
                                 <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Data</th>
                                 <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Descrição</th>
-                                {/* ✅ 5. NOVA COLUNA PARA PESSOA NA TABELA */}
                                 <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Pessoa</th>
-                                <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Categoria</th>
                                 <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Cartão</th>
                                 <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Valor</th>
+                                {/* ✅ 3. NOVA COLUNA PARA STATUS */}
+                                <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Status</th>
                                 <th className="py-3 px-4 text-left text-sm font-medium text-gray-600 dark:text-gray-300 uppercase">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {expenses.map((expense) => {
-                                const cardName = cards.find(c => c.id === expense.cardId)?.name || 'N/A';
+                                const cardName = expense.cardId ? cards.find(c => c.id === expense.cardId)?.name : 'N/A';
                                 const clientName = clients.find(c => c.id === expense.clientId)?.name || 'N/A';
+                                const status = expense.status || 'Pendente'; // Garante um valor padrão
                                 return (
                                     <tr key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                                         <td className="py-3 px-4 whitespace-nowrap">{new Date(expense.date + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
                                         <td className="py-3 px-4 whitespace-nowrap">{expense.description}</td>
                                         <td className="py-3 px-4 whitespace-nowrap">{clientName}</td>
-                                        <td className="py-3 px-4 whitespace-nowrap">{expense.category}</td>
                                         <td className="py-3 px-4 whitespace-nowrap">{cardName}</td>
                                         <td className="py-3 px-4 whitespace-nowrap">{formatCurrencyDisplay(expense.value)}</td>
+                                        <td className={`py-3 px-4 whitespace-nowrap font-semibold ${status === 'Paga' ? 'text-green-500' : 'text-yellow-500'}`}>{status}</td>
                                         <td className="py-3 px-4 whitespace-nowrap flex items-center gap-2">
+                                            {/* ✅ 4. NOVO BOTÃO DE AÇÃO PARA PAGAR/DESMARCAR */}
+                                            <button onClick={() => handleToggleExpenseStatus(expense)} className={`text-white px-3 py-1 rounded-md text-sm transition-colors ${status === 'Paga' ? 'bg-gray-500 hover:bg-gray-600' : 'bg-blue-500 hover:bg-blue-600'}`}>
+                                                {status === 'Paga' ? 'Desmarcar' : 'Pagar'}
+                                            </button>
                                             <button onClick={() => handleEdit(expense)} className="text-blue-600 hover:text-blue-900">Editar</button>
                                             <button onClick={() => confirmDelete(expense.id)} className="text-red-600 hover:text-red-900">Deletar</button>
                                         </td>

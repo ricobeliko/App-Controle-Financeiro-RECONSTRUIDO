@@ -9,18 +9,26 @@ import AuthScreen from './features/auth/AuthScreen';
 import Dashboard from './features/dashboard/Dashboard';
 import ClientManagement from './features/clients/ClientManagement';
 import CardManagement from './features/cards/CardManagement';
-// ✅ 1. IMPORTAR O NOVO COMPONENTE UNIFICADO DE MOVIMENTAÇÕES
 import UnifiedTransactionManagement from './features/transactions/TransactionManagement'; 
 import SubscriptionManagement from './features/subscriptions/SubscriptionManagement';
 import Toast from './components/Toast';
+import LandingPage from './components/LandingPage'; // Importando a Landing Page
 
-// --- COMPONENTE UserStatusBadge (sem alterações) ---
+// --- Ícones e Logo ---
+const FinControlLogo = ({ className }) => (
+    <svg className={className} width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2 17L12 22L22 17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2 12L12 17L22 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+);
 const ShieldCheckIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
 );
 const ShieldIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
 );
+
 function UserStatusBadge() {
     const { isPro, functions, showToast } = useAppContext();
     const [isLoading, setIsLoading] = useState(false);
@@ -68,6 +76,7 @@ function App() {
     const [activeTab, setActiveTab] = useState('resumo');
     const [theme, setTheme] = useState('dark');
     const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+    const [showAuth, setShowAuth] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(() => {
         const today = new Date();
         return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -81,6 +90,7 @@ function App() {
 
     const handleLogout = () => {
         signOut(auth);
+        setShowAuth(false);
     };
     const toggleTheme = () => setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
 
@@ -92,6 +102,10 @@ function App() {
         );
     }
     
+    if (!currentUser && !showAuth) {
+        return <LandingPage onLogin={() => setShowAuth(true)} />;
+    }
+
     if (!currentUser || !currentUser.emailVerified) {
         return <AuthScreen />;
     }
@@ -101,10 +115,12 @@ function App() {
             <header className="bg-gradient-to-r from-blue-600 to-blue-800 dark:from-gray-800 dark:to-gray-900 text-white p-4 shadow-md rounded-b-lg">
                 <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <h1 className="text-2xl md:text-3xl font-bold">Controlo Financeiro</h1>
+                        <div className="flex items-center gap-2">
+                            <FinControlLogo className="text-white" />
+                            <h1 className="text-2xl md:text-3xl font-bold">FinControl</h1>
+                        </div>
                         <UserStatusBadge />
                     </div>
-                    {/* ✅ 2. BARRA DE NAVEGAÇÃO ATUALIZADA */}
                     <nav className="flex flex-wrap space-x-1 sm:space-x-2 items-center">
                         <button onClick={() => setActiveTab('resumo')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'resumo' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Resumo</button>
                         <button onClick={() => setActiveTab('pessoas')} className={`py-2 px-3 rounded-lg transition duration-300 text-sm ${activeTab === 'pessoas' ? 'bg-blue-700 dark:bg-gray-700 text-white shadow-lg' : 'hover:bg-blue-700 hover:text-white dark:hover:bg-gray-700'}`}>Pessoas</button>
@@ -132,7 +148,6 @@ function App() {
                 </div>
             </header>
             <main className="container mx-auto p-4 mt-4">
-                {/* ✅ 3. RENDERIZAR O COMPONENTE UNIFICADO QUANDO A ABA ESTIVER ATIVA */}
                 {activeTab === 'resumo' && <Dashboard {...{ selectedMonth, setSelectedMonth, selectedCardFilter, setSelectedCardFilter, selectedClientFilter, setSelectedClientFilter }} />}
                 {activeTab === 'pessoas' && <ClientManagement />}
                 {activeTab === 'cards' && <CardManagement />}
